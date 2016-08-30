@@ -21,7 +21,7 @@ lines(density(algae1$mxPH, na.rm = T))
 rug(jitter(algae1$mxPH))
 qqPlot(algae1$mxPH, main = 'QQ plot mxPh')
 
-#boxplot oP04
+#2.4 boxplot oP04
 boxplot(algae1$oPO4, ylab = 'Orthopohsphate (oPO4)')
 rug(jitter(algae1$oPO4), side = 2)
 abline(h = mean(algae1$oPO4, na.rm = TRUE), lty = 2)
@@ -49,3 +49,54 @@ minO2 <- equal.count(na.omit(algae1$mnO2), number = 4, overlap = 1/5)
 minO2
 
 stripplot(season ~ a1|minO2, data = algae1[!is.na(algae1$mnO2),])
+
+#2.5.1 Removing NAs and missing data
+algae1[!complete.cases(algae1),]
+nrow(algae1[!complete.cases(algae1),])
+
+algaeNoNAs <- na.omit(algae1) #omit
+algae62_199 <- algae1[-c(62,199),] #remove worst offenders explicitly
+
+apply(algae1, 1, function(x) sum(is.na(x))) # 1 arg means first dimension in object
+
+manyNAs(algae1, 0.2) # function in DMwR counts rows with more than 20% of data NA
+
+algae62_199 <- algae1[-manyNAs(algae1, 0.2),]
+
+#2.5.2 fitting unknowns with a statistic - mean, median, mode
+# when using the mean for fittingensure distribution is normal
+# median is better for skewed data
+
+algae1[48, "mxPH"] <- mean(algae$mxPH, na.rm = T) # don't execute just an example
+algae1[is.na(algae1$Chla, "Chla")] <- median(algae1$Chla, na.rm = T) # don't execute just an example.
+
+# can also use centralImputation function part of the DMwR library
+algae1 <- algae1[-manyNAs(algae1, 0.2),]
+algae1 <- centralImputation(algae1)
+
+# 2.5.3 using regression imputation
+# look at correlation table
+
+algCor <- cor(algae1[, 4:18], use = "complete.obs")
+symnum(algCor)
+
+algae1[is.na(algae1$PO4),] # row 28 only P04 obs with NA
+
+#use linear regression to fill in missing values for PO4
+lm(PO4 ~ oPO4, algae1)
+
+#sapply function to all missing PO4 data
+
+fillPO4 <- function(oP){
+  if(is.na(oP))
+    return(NA)
+  else
+    return (42.897 + oP * 1.293)
+}
+algae1[is.na(algae1$PO4), "PO4"] <- sapply(algae1[is.na(algae1$PO4), "oPO4"], fillPO4)
+
+algae1$season <- factor(algae1$season, c("spring", "summer", "autumn", "winter"))
+histogram(~mxPH|season, data = algae1)
+algae1$season <- factor(algae1$season, c("spring", "summer", "autumn", "winter"))
+histogram(~mxPH|season * speed, data = algae1)
+stripplot(size ~ mxPH|speed, data = algae1, jitter = T)
