@@ -162,3 +162,44 @@ snip.rpart(first.tree, c(4, 7))
 prettyTree(first.tree)
 second.tree <- snip.rpart(first.tree, c(4, 7))
 prettyTree(second.tree)
+
+# 2.7 Model eval and selection
+# using mean absolute error MAE
+data(algae)
+algae <- algae[-manyNAs(algae),]
+clean.algae <- knnImputation(algae, k = 10)
+lm3.a1 <- lm(a1 ~ ., data = clean.algae[, 1:12])
+final.lm <- step(lm3.a1)
+
+lm.predictions.a1 <- predict(final.lm, clean.algae)
+rt.predictions.a1 <- predict(rt.a1, algae1)
+
+(mae.a1.lm <- mean(abs(lm.predictions.a1 - algae[,"a1"])))
+(mae.al.rt <- mean(abs(rt.predictions.a1 - algae[,"a1"])))
+
+# can also use mean squared error (MSE)
+(mse.a1.lm <- mean((abs(lm.predictions.a1 - algae[,"a1"]))^2))
+(mse.al.rt <- mean((abs(rt.predictions.a1 - algae[,"a1"]))^2))
+
+# disadvantage is that these aren't normalized so another method is NMSE, values less that
+# 1 mean your model is predicting better than average (smaller better), larger than 1
+# model predicts worse than average
+(nmse.al.lm <-  mean((abs(lm.predictions.a1 - algae[,"a1"]))^2)/
+               mean((mean(algae[,'a1'])-algae[,'a1'])^2))
+(nmse.al.rt <-  mean((abs(rt.predictions.a1 - algae[,"a1"]))^2)/
+                mean((mean(algae[,'a1'])-algae[,'a1'])^2))
+
+# you can use the book package to do all of the above calculations
+regr.eval(algae[,"a1"], rt.predictions.a1, train.y = algae[, "a1"])
+regr.eval(algae[,"a1"], lm.predictions.a1, train.y = algae[, "a1"])
+
+# visual inspection with scatter plot of errors, all points should be on the line x = y
+old.par <- par(mfrow = c(1,2))
+plot(lm.predictions.a1, algae[,"a1"], main = "linear model", xlab = "Predictions", ylab = "true values")
+abline(0, 1, lty = 2)
+plot(rt.predictions.a1, algae[,"a1"], main = "regression trees", xlab = "Predictions", ylab = "True values")
+abline(0,1, lty = 2)
+par(old.par)
+
+
+
