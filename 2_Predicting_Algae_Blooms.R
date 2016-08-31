@@ -146,3 +146,19 @@ prettyTree(rt.a1)
 # prune
 printcp(rt.a1)
 # typically you want to choose the tree with least 1-SE (xerror) and standard dev. (xstd)
+# then pick the tree with the xerror just below xerror+xstd from above
+# printcp shows how the tree was grown
+# to pick that tree you can prune
+rt2.a1 <- prune(rt.a1, cp = 0.08)
+rt2.a1
+
+# or you can use a built in function of DMwR that automates both steps 
+rt.a1 <- rpartXse(a1 ~ ., data =  algae1[,1:12])
+
+# or you can prune with snip.rpart
+first.tree <- rpart(a1 ~ ., data = algae1[,1:12])
+first.tree
+snip.rpart(first.tree, c(4, 7))
+prettyTree(first.tree)
+second.tree <- snip.rpart(first.tree, c(4, 7))
+prettyTree(second.tree)
