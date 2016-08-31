@@ -100,3 +100,49 @@ histogram(~mxPH|season, data = algae1)
 algae1$season <- factor(algae1$season, c("spring", "summer", "autumn", "winter"))
 histogram(~mxPH|season * speed, data = algae1)
 stripplot(size ~ mxPH|speed, data = algae1, jitter = T)
+
+# 2.5.4 imputation by correlation of observations through Eucledian distance
+# remove too many NA rows, see line 74 "-manyNAs()"
+# 1st method uses median of 10 closest neighbors and fills in median
+algae1 <- knnImputation(algae1, k =10, meth = "median")
+
+#2nd method uses weighted average of 10 closest neighbors and fills in weighted average, 
+# weights decrease with distance
+algae1 <- knnImputation(algae1, k = 10)
+
+# 2.6 Obtaining prediction models
+# 2.6.1 Multiple linear regressions
+# using imputation from knnImputation
+lm.a1 <- lm(a1 ~ ., data = algae1[, 1:12])
+summary(lm.a1)
+plot(lm.a1)
+# "." in lm formula means all other variables in data not predictor
+
+# backward elimination 
+# anova
+anova(lm.a1)
+lm2.a1 <- update(lm.a1, .~. - season)
+summary(lm2.a1)
+# model still doesn't reduce much error, but simpler
+# compare the two models 
+anova(lm.a1, lm2.a1)
+
+# try using step() default is backward elimination
+final.lm <- step(lm.a1)
+summary(final.lm)
+# still doesn't explain much variance, so I would questions the application of linear model for this domain
+
+# 2.6 Regression trees
+# these models can handle missing data, so only eliminate manyNAs
+library(rpart)
+rt.a1 <- rpart(a1 ~ ., data = algae1[,1:12])
+rt.a1
+
+#apply prettyTree() part of DMwR library for formatted tree
+prettyTree(rt.a1)
+
+#trees tend to overfit, thus pruning is advised post process (2 step process)
+#parameters cp, minsplit, and maxdepth can control how the tree is grown 
+# prune
+printcp(rt.a1)
+# typically you want to choose the tree with least 1-SE (xerror) and standard dev. (xstd)
