@@ -201,5 +201,105 @@ plot(rt.predictions.a1, algae[,"a1"], main = "regression trees", xlab = "Predict
 abline(0,1, lty = 2)
 par(old.par)
 
+# we can check where there are particularly poor predictions with the identify function
+plot(lm.predictions.a1, algae[,"a1"], main = "linear model", xlab = "Predictions", ylab = "true values")
+abline(0, 1, lty = 2)
+algae[identify(lm.predictions.a1, algae[,"a1"]),] # returns rows that you select with bad predictions
 
+# can improve model by assuming a1 can't be below zero 
+sensible.lm.predictions.a1 <- ifelse(lm.predictions.a1 < 0, 0, lm.predictions.a1)
+# campare models with regr.eval
+regr.eval(algae[,"a1"], lm.predictions.a1)
+regr.eval(algae[,"a1"], sensible.lm.predictions.a1)
 
+# common issue is overfitting when using all data. Need a more reliable method 
+# enter k-fold CV (k fold cross validation) or bootstrapping 
+# obtain k subsets of equally sized data and random data
+# build models on k-1 subsets to predict k
+# repeat and average results
+
+# we can use experimentalComparison() to do the above
+# we need to build functions to provide this function with necessary inputs
+# user supplies the functinos of models to compare in experimentalComparison() function
+# functions need to have a train+test+evaluate cycle
+cv.rpart <- function(form, train, test,...)
+{
+  m <- rpartXse(form,train,...)
+  p <- predict(m, test)
+  mse <- mean((p - resp(form,test))^2)
+  c(nsme=mse/mean((mean(resp(form, test)) - resp(form, test))^2))
+}
+
+cv.lm <- function(form, train, test,...)
+{
+  m <- lm(form,train,...)
+  p <- predict(m, test)
+  p <- ifelse(p < 0, 0, p)
+  mse <- mean((p - resp(form,test))^2)
+  c(nsme=mse/mean((mean(resp(form, test)) - resp(form, test))^2))
+}
+
+# here we've assumed that the nmse is the evaluation metric
+# resp gets the target variables data
+
+# first arg: vector = dataset(formula, data.frame, label)
+# 2nd arg: vector = variants of learning systems, cv.lm used with defaults, cv.rpart used 
+# with alternative se parameters defined for 3 different tree variants (i.e. four models total compared)
+# 3rd arg: vector of settings defining repitions (3), k subsets (10), seed for random # 
+# generator (1234)
+res <- experimentalComparison(
+                              c(dataset(a1 ~ ., clean.algae[, 1:12], 'a1')),
+                              c(variants('cv.lm'),
+                                variants('cv.rpart', se = c(0, 0.5, 1))),
+                              cvSettings(3, 10, 1234))
+
+summary(res)
+plot(res)
+getVariant('cv.rpart.v1', res)
+
+# now we can carry this out for all seven prediction tasks all at once 
+DSs <- sapply(names(clean.algae)[12:18], 
+              function(x, names.attrs){
+                f <- as.formula(paste(x, "~ ."))
+                dataset(f, clean.algae[,c(names.attrs, x)], x)},
+              names(clean.algae)[1:11])
+
+resAll <- experimentalComparison(
+                              DSs,
+                              c(variants('cv.lm'),
+                                variants('cv.rpart', se = c(0, 0.5, 1))),
+                              cvSettings(5, 10, 1234))
+plot(resAll)
+# many bad results show up (ie nmse above 1)
+# get the best scores
+bestScores(resAll)
+
+# no model predicts very well. this may be a good candidate for an ensemble approach
+# ensemble approaches take a bunch of models and then taking a combination of their predictions.
+# random forests are good at ensemble approaches. 
+library(randomForest)
+cv.rf <- function(form, train, test,...)
+{
+  m <- randomForest(form,train,...)
+  p <- predict(m, test)
+  mse <- mean((p - resp(form,test))^2)
+  c(nsme=mse/mean((mean(resp(form, test)) - resp(form, test))^2))
+}
+
+resAll <- experimentalComparison(
+  DSs,
+  c(variants('cv.lm'),
+    variants('cv.rpart', se = c(0, 0.5, 1)),
+    variants('cv.rf', ntree = c(200, 500, 700))),
+  cvSettings(5, 10, 1234))
+
+bestScores(resAll)
+# this doesn't tell us the confidence that another dataset will produce the same 
+# we can check this with the compAnalysis function in DMwR
+# is cv.rf.v3 truly the best for a1 and a2
+compAnalysis(resAll, against = 'cv.rf.v3', datasets = c('a1', 'a2'))
+
+# sig codes here are what we are looking for. It tells us if there are models significantly
+# higher (plus signs) or lower (minus signs) than the model in question
+
+# 
