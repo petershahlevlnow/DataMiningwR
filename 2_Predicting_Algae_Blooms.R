@@ -324,8 +324,8 @@ clean.test.algae <- knnImputation(test.algae, k =10, distData = algae[, 1:11])
 
 #now we can get a matrix of predictions for hte entire test set
 preds <- matrix(ncol = 7, nrow = 140)
-for (i in 1:nrow(clean.test.algae))
-  preds[i,] <- sapply(1:7, function(x) predict(bestModel[[a]], clean.test.algae[i,]))
+for (i in 1:nrow(clean.test.algae)){
+  preds[i,] <- sapply(1:7, function(x) predict(bestModel[[x]], clean.test.algae[i,]))}
 
 # lets check the predictions against the solution data frame for accuracy using the nmse
 avg.preds <- apply(algae[,12:18], 2, mean)
