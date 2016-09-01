@@ -302,4 +302,31 @@ compAnalysis(resAll, against = 'cv.rf.v3', datasets = c('a1', 'a2'))
 # sig codes here are what we are looking for. It tells us if there are models significantly
 # higher (plus signs) or lower (minus signs) than the model in question
 
-# 
+
+# 2.8 Predicting with the best models
+# get model names
+bestModelNames <- sapply(bestScores(resAll), function(x) x['nsme', 'system']) # note nsme here which reflects how other data was compiled but should be nmse
+learners <- c(rf = 'randomForest', rpart = 'rpartXse')
+funcs <- learners[sapply(strsplit(bestModelNames, '\\.'), function(x) x[2])]
+parSetts <- lapply(bestModelNames, function(x) getVariant(x, resAll)@pars)
+bestModel <- list()
+
+# get prediction models into a list
+for (a in 1:7)
+{ 
+  forms <- as.formula(paste(names(clean.algae)[11+a], '~ .'))
+  bestModel[[a]] <- do.call(funcs[a], c(list(forms, clean.algae[,c(1:11, 11+a)]), parSetts[[a]]))
+}
+
+# get test data and impute, doesn't include prediction variables, distData allows 
+# you to supply extra information where the 10 nearest neighbors are found.
+clean.test.algae <- knnImputation(test.algae, k =10, distData = algae[, 1:11])
+
+#now we can get a matrix of predictions for hte entire test set
+preds <- matrix(ncol = 7, nrow = 140)
+for (i in 1:nrow(clean.test.algae))
+  preds[i,] <- sapply(1:7, function(x) predict(bestModel[[a]], clean.test.algae[i,]))
+
+# lets check the predictions against the solution data frame for accuracy using the nmse
+avg.preds <- apply(algae[,12:18], 2, mean)
+apply(  ((algae.sols-preds)^2), 2, mean)/apply(  (scale(algae.sols, avg.preds, F)^2), 2, mean)
