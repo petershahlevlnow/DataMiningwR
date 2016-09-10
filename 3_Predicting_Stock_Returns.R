@@ -144,5 +144,24 @@ Tform <- as.formula('T.ind.GSPC ~ .')
 
 # use confusion matrix for evaluation of precision - proportion of events produced by model that are
 # correct, & recall - the proportion of the events occuring in the domain that is signaled as such by 
-# the models
+# the models. These two metrics are often combined into one - F-measure
+
+# 3.4.1 Three forms of obtaining predictions and updating/reteaching models
+# - 1) single period 2) sliding window 3) growing window
+# there are two ways to address a "regime shift" for sliding and growing windows:
+# 1. detect when a shift happens based on the data (i.e. perfomance degradation), difficult and must not overreact
+# 2. use a set update time frame/period (w), which is simpler
+
+#3.4.2.1 Artificial Nueral Networks (ANN)
+# feed forward - layered neurons that feed a linear computation and a non-linear computation, which
+# produces a result that is the input to another neuron. 
+# ANNs are suseptiple to different scales, so normalize variables before inputting into ANN
+
+# simple illustration of nueral net using 1000 for net and next 1000 for predicton
+set.seed(1234)
+library(nnet)
+norm.data <- scale(Tdata.train)
+nn <- nnet(Tform, norm.data[1:1000,], size = 10, decay = 0.01, maxit = 1000, linout = T, trace = F)
+norm.preds <- predict(nn, norm.data[1001:2000,])
+preds <- unscale(norm.preds, norm.data)
 
