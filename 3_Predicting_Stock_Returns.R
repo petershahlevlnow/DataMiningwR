@@ -162,6 +162,23 @@ set.seed(1234)
 library(nnet)
 norm.data <- scale(Tdata.train)
 nn <- nnet(Tform, norm.data[1:1000,], size = 10, decay = 0.01, maxit = 1000, linout = T, trace = F)
+# initial weights of links set to randoms [-0.5 ... 0.5], two successive runs can produce differnt results. thus set seed.
+# arguments: formula, data, size of hidden node layer, decay - weight updating rate, 
+# maxit - max iterations, linout = regression problem
 norm.preds <- predict(nn, norm.data[1001:2000,])
 preds <- unscale(norm.preds, norm.data)
 
+#evaluate the preds on trading signals with our thresholds
+sigs.nn <- trading.signals(preds, 0.1, -0.1)
+true.sigs <- trading.signals(Tdata.train[1001:2000, "T.ind.GSPC"], 0.1, -0.1)
+sigs.PR(sigs.nn, true.sigs)
+
+# can also use  ANNs for classification, meaning probabilities for each class for every test case
+# same process as above
+set.seed(1234)
+library(nnet)
+signals <- trading.signals(Tdata.train[,"T.ind.GSPC"], 0.1, -0.1)
+norm.data <- data.frame(signals = signals, scale(Tdata.train[, -1]))
+nn <- nnet(signals ~ ., norm.data[1:1000,], size = 10, decay = 0.01, maxit = 1000, trace = F)
+preds <- predict(nn, norm.data[1001:2000, ], type = 'class')
+sigs.PR(preds, norm.data[1001:2000, 1])
