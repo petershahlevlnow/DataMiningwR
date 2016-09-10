@@ -1,4 +1,13 @@
 # Ch 3 - Policy 1, see book for more details.
+# args: signals - predictions until day d
+# market - market quotes to day d
+# opened pos - open positions matrix with columns pos.type(1 long, -1 short), N.stocks: number of stocks
+#               Odate: date opened, Oprice: price paid
+# bet = amount of total available money to bet
+# hold.time - max time to hold a position
+# exp.prof - desired return
+# max.loss - max loss before sale
+
 
 policy.1 <- function(signals, market, opened.pos, money,
                      bet = 0.2, hold.time = 10,
