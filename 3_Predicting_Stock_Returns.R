@@ -212,3 +212,7 @@ e.preds <- predict(e, Tdata.train[1001:2000,])
 sigs.e <- trading.signals(e.preds, 0.1, -0.1)
 true.sigs <- trading.signals(Tdata.train[1001:2000, "T.ind.GSPC"], 0.1, -0.1)
 sigs.PR(sigs.e, true.sigs)
+
+# 3.5 Trading simulator
+# see policy 1 & 2 function written in another script file
+
