@@ -24,6 +24,7 @@ policy.1 <- function(signals, market, opened.pos, money,
   if (signals[d] =='b' && !nOs){
     quant <- round(bet*money/market[d,'Close'],0)
     if (quant > 0)
+      # Note when orders are sent three orders are made 1. open a position, 2. limit order for profit, 3. stop loss
       orders <- rbind(orders, 
                       data.frame(order = c(1,-1,-1), order.type = c(1,2,3),
                                  val = c(quant, 
@@ -59,7 +60,7 @@ policy.1 <- function(signals, market, opened.pos, money,
                                    posID = rownames(opened.pos)[i]))        
         
     }
-    
+    orders
 }
 
 
