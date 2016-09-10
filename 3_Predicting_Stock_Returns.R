@@ -203,4 +203,12 @@ ksv <- ksvm(signals ~ ., data[1:1000, ], C = 10)
 ks.preds <- predict(ksv, data[1001:2000, ])
 sigs.PR(ks.preds, data[1001:2000, 1])
 
-
+# 3.4.2.3 Multivariate Adaptive Regression Splines (mars) - form of additive regression
+# only applicable for regression problems, not classifcation
+# packages mda:mars() or earth:earth(). Use earth as it is more inline with previous implementations
+library(earth)
+e <- earth(Tform, Tdata.train[1:1000,])
+e.preds <- predict(e, Tdata.train[1001:2000,])
+sigs.e <- trading.signals(e.preds, 0.1, -0.1)
+true.sigs <- trading.signals(Tdata.train[1001:2000, "T.ind.GSPC"], 0.1, -0.1)
+sigs.PR(sigs.e, true.sigs)
