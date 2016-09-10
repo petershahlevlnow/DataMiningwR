@@ -182,3 +182,25 @@ norm.data <- data.frame(signals = signals, scale(Tdata.train[, -1]))
 nn <- nnet(signals ~ ., norm.data[1:1000,], size = 10, decay = 0.01, maxit = 1000, trace = F)
 preds <- predict(nn, norm.data[1001:2000, ], type = 'class')
 sigs.PR(preds, norm.data[1001:2000, 1])
+
+
+# 3.4.2.2 Support Vector Machines - mapping of orignal data into a new high dimensional space, where 
+# it is possible to to apply linear methods to obtain a seperating hyperplane. Seperation is done
+# with kernel functions. 
+
+# first with the regression task
+library(e1071)
+sv <- svm(Tform, Tdata.train[1:1000,], cost = 10)#, gamma = 0.001, cost = 1)
+s.preds <- predict(sv, Tdata.train[1001:2000, ])
+sigs.svm <- trading.signals(s.preds, 0.1, -0.1)
+true.sigs <- trading.signals(Tdata.train[1001:2000, "T.ind.GSPC"], 0.1, -0.1)
+sigs.PR(sigs.svm, true.sigs)
+
+# next for classification
+library(kernlab)
+data <- cbind(signals = signals, Tdata.train[, -1])
+ksv <- ksvm(signals ~ ., data[1:1000, ], C = 10)
+ks.preds <- predict(ksv, data[1001:2000, ])
+sigs.PR(ks.preds, data[1001:2000, 1])
+
+
