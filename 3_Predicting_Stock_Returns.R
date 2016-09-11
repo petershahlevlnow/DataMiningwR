@@ -253,3 +253,18 @@ plot(t2, market, theme = "white", name = "SP500")
 # retry with policy 2 with a different period
 # DO NOT RELY ON JUST ONE TEST PERIOD, need more repitions under different conditions to ensure some
 # statistical reliability of our results.
+
+# 3.6 Model evaluation and selection
+
+#3.6.1 Monte Carlo Estimates
+# shouldn't use cross-validation methods on time series since order matters in TS
+# should also use the most recent data to predict future data
+# monte carlo here will iterate n times finding a point in time (from 10 to 25 years,) in the sample and then capture
+# the -10years for training and the +5 years for testing. 
+
+# experimentalCompa
+
+
+
+
+
