@@ -262,7 +262,10 @@ plot(t2, market, theme = "white", name = "SP500")
 # monte carlo here will iterate n times finding a point in time (from 10 to 25 years,) in the sample and then capture
 # the -10years for training and the +5 years for testing. 
 
-# experimentalCompa
+# experimentalComparison() can be used for Monte Carlo
+# 3.6.2 Experimental Comparison
+# 
+
 
 
 
