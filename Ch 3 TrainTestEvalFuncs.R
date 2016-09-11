@@ -83,3 +83,16 @@ eval.stats <- function(form, train, test, preds, b.t = 0.1, s.t = -0.1, ...){
   trade.res <- trading.simulator(market, preds, ...)
   c(st, tradingEvaluation(trade.res))
 }
+
+# policy variations
+pol1 <- function(signals, market, op.money) {
+  policy.1(signals, market, op.money, bet = 0.2, exp.prof = 0.025, max.loss = 0.05, hold.time = 10)
+}
+
+pol2 <- function(signals, market, op.money) {
+  policy.1(signals, market, op.money, bet = 0.2, exp.prof = 0.05, max.loss = 0.05, hold.time = 20)
+}
+
+pol3 <- function(signals, market, op.money) {
+  policy.2(signals, market, op.money, bet = 0.5, exp.prof = 0.05, max.loss = 0.05)
+}
