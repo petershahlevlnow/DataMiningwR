@@ -21,7 +21,7 @@ MC.svmC <- function(form, train, test, b.t = 0.1, st.t = -0.1,...){
 }
 
 # nnet regression
-MC.nnetR <- function(form, train, test, b.t = 0.1, st.t = -0.1,...){
+MC.nnetR <- function(form, train, test, b.t = 0.1, s.t = -0.1,...){
   require(nnet)
   t <- nnet(form, train, ...)
   p <- predict(t, test)
@@ -85,14 +85,14 @@ eval.stats <- function(form, train, test, preds, b.t = 0.1, s.t = -0.1, ...){
 }
 
 # policy variations
-pol1 <- function(signals, market, op.money) {
-  policy.1(signals, market, op.money, bet = 0.2, exp.prof = 0.025, max.loss = 0.05, hold.time = 10)
+pol1 <- function(signals, market, op,money) {
+  policy.1(signals, market, op,money, bet = 0.2, exp.prof = 0.025, max.loss = 0.05, hold.time = 10)
 }
 
-pol2 <- function(signals, market, op.money) {
-  policy.1(signals, market, op.money, bet = 0.2, exp.prof = 0.05, max.loss = 0.05, hold.time = 20)
+pol2 <- function(signals, market, op,money) {
+  policy.1(signals, market, op, money, bet = 0.2, exp.prof = 0.05, max.loss = 0.05, hold.time = 20)
 }
 
-pol3 <- function(signals, market, op.money) {
-  policy.2(signals, market, op.money, bet = 0.5, exp.prof = 0.05, max.loss = 0.05)
+pol3 <- function(signals, market, op,money) {
+  policy.2(signals, market, op, money, bet = 0.5, exp.prof = 0.05, max.loss = 0.05)
 }
