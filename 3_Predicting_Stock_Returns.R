@@ -216,3 +216,40 @@ sigs.PR(sigs.e, true.sigs)
 # 3.5 Trading simulator
 # see policy 1 & 2 function written in another script file
 
+#Execute policies
+# Using SVM
+
+# train and test periods
+start <- 2000 # retry with 2000 or 1
+len.tr <- 1000
+len.ts <- 500
+tr <- start:(start+len.tr-1)
+ts <- (start+len.tr):(start+len.tr+len.ts-1)
+# getting the quotes for the testing period
+data(GSPC)
+date <- rownames(Tdata.train[start+len.tr,])
+market <- GSPC[paste(date,'/',sep = '')][1:len.ts]
+#learning the model and obtaining its signal predictions
+library(e1071)
+s <- svm(Tform, Tdata.train[tr,], cost = 10, gamma = 0.01)
+p <- predict(s, Tdata.train[ts,])
+sig <- trading.signals(p, 0.1, -0.1)
+# now using the trading simulator
+t1 <- trading.simulator(market, sig, 'policy.1', list(exp.prof=0.05, bet = 0.2, hold.time = 30))
+t1
+summary(t1)
+#trading evaluation can be used to obtain a series of economic indicators of the performance during
+# simulsation period
+tradingEvaluation(t1)
+# can also obtain plot to view performance
+plot(t1, market, theme = "white", name = "SP500")
+
+# try with policy 2
+t2 <- trading.simulator(market, sig, 'policy.2', list(exp.prof=0.05, bet = 0.2))
+t2
+summary(t2)
+tradingEvaluation(t2)
+plot(t2, market, theme = "white", name = "SP500")
+# retry with policy 2 with a different period
+# DO NOT RELY ON JUST ONE TEST PERIOD, need more repitions under different conditions to ensure some
+# statistical reliability of our results.
