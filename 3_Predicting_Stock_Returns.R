@@ -264,7 +264,11 @@ plot(t2, market, theme = "white", name = "SP500")
 
 # experimentalComparison() can be used for Monte Carlo
 # 3.6.2 Experimental Comparison
-# 
+#  see test train eval funcs and Monte Carlo .R files
+
+# Results Analysis
+
+
 
 
 

@@ -62,7 +62,7 @@ sliding <- function(form, train, test, learner, relearner.step, policy.func,...)
 
 # growing window test
 grow <- function(form, train, test, learner, relearner.step, policy.func,...){
-  real.learner <- learner(paste("MC", learner, sep = "."), pars = list(...))
+  real.learner <- learner(paste("MC", learner, sep = "."), pars = list(...)) # calls MC functions 
   p <- growingWindowTest(real.learner, form, train, test, relearn.step)
   p <- factor(p, levels = 1:3, labels = c("s", "h", "b"))
   eval.stats(form, train, test, p, policy.func = policy.func)

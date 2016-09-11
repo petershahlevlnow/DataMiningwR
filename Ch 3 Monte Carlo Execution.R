@@ -21,6 +21,7 @@ VARS$nnetC <- list(maxit = 750, size = c(5,10), decay = c(0.001, 0.01),
 
 # main loop assign expComp MCs to td list and save to file for each iterantion and variant
 for (td in TODO){
+  # this thing will call the single, slide, and grow functions in TrainTestEvalFuncs.R
   assign(td, 
          experimentalComparison(DSs, 
                                 c(do.call('variants',
