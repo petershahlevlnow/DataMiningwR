@@ -62,7 +62,7 @@ head(USDEUR)
 T.ind <- function(quotes, tgt.margin = 0.025, n.days = 10){
   v <- apply(HLC(quotes), 1, mean) # HLC gets the high low and close of quote objects, average the daily price
   r <- matrix(NA, ncol = n.days, nrow = NROW(quotes)) # create an empty matrix
-  for (x in 1:n.days) r[, x] <- Next(Delt(v, k = x), x) # fill matrix r, Next allows a shift in time series
+  for(x in 1:n.days) r[,x] <- Next(Delt(Cl(quotes),v,k=x),x)# fill matrix r, Next allows a shift in time series
   x <- apply(r, 1, function(x) sum(x[x > tgt.margin | x < -tgt.margin])) # target margin +/-p%, default = 2.5% 
   if(is.xts(quotes))
     xts(x, time(quotes))
@@ -139,7 +139,7 @@ data.model <- specifyModel(T.ind(GSPC) ~ myATR(GSPC) +
 # so we need to move out of the xts to do classification with nominal predictions
 # okay now build the training data and test data with data.frames and omit NAs
 Tdata.train <- as.data.frame(modelData(data.model, data.window = c("1970-01-02", "1999-12-31")))
-Tdata.eval<- na.omit(as.data.frame(modelData(data.model, data.window = c("1970-01-02", "1999-12-31"))))
+Tdata.eval<- na.omit(as.data.frame(modelData(data.model, data.window = c("2000-01-01", "2009-09-15"))))
 Tform <- as.formula('T.ind.GSPC ~ .')
 
 # use confusion matrix for evaluation of precision - proportion of events produced by model that are
@@ -314,5 +314,38 @@ compAnalysis(subset(fullResults, stats = tgtStats, vars = namesBest))
 # can also plot to get an idea
 plot(subset(fullResults, stats = c("Ret", "PercProf", "MaxDD"), vars = namesBest))
 getVariant("single.nnetR.v12", nnetR) # this one seems interesting for its 2800% return on one iteration
+# would probably leave this one out of the final system due to instablility, but will include for
+# demonstation purposes
 
-#
+# 3.7 Trading System
+# apply the models to the holdout data - 
+data <- tail(Tdata.train, 2540)
+results <- list()
+for(name in namesBest){
+  sys <- getVariant(name, fullResults)
+  results[[name]] <- runLearner(sys, Tform, data, Tdata.eval) # not sure why I'm getting an error here
+}
+results <- t(as.data.frame(results))
+
+results[, c("Ret", "RetOverBH", "MaxDD", "SharpeRatio", "NTrades", "PercProf")]
+getVariant("grow.nnetR.v12", fullResults)
+
+model <- learner("MC.nnetR", list(maxit = 750, linout = T, trace = F, size = 10, decay = 0.001))
+preds <- growingWindowTest(model, Tform, data, Tdata.eval, relearn.step = 120)
+signals <- factor(preds, levels = 1:3, labels = c("s", "h", "b"))
+date <- row.names(Tdata.eval)[1]
+market <- GSPC[paste(date, "/", sep = "")][1:length(signals),]
+trade.res <- trading.simulator(market, signals, policy.func = "pol2")
+
+plot(trade.res, market, theme = "white", name = "SP500 - Final Test")
+
+# cool performance and risk analytics tools you can use in this library:
+library(PerformanceAnalytics)
+rets <- Return.calculate(trade.res@trading$Equity)                 
+chart.CumReturns(rets, main = "Cumulative Returns of the strategy", ylab = "Returns")
+y.returns <- yearlyReturn(xts(trade.res@trading$Equity))
+
+plot(100*y.returns, main = "yearly percentage returns of trading system")
+abline(h = 0, lty = 2)
+table.CalendarReturns(xts(rets))
+table.DownsideRisk(xts(rets))
