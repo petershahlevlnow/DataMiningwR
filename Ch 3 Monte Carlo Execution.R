@@ -18,3 +18,21 @@ VARS$nnetR <- list(linout = T, maxit = 750, size = c(5,10), decay = c(0.001, 0.0
                   policy.func = c('pol1', 'pol2', 'pol3'))
 VARS$nnetC <- list(maxit = 750, size = c(5,10), decay = c(0.001, 0.01), 
                    policy.func = c('pol1', 'pol2', 'pol3'))
+
+# main loop assign expComp MCs to td list and save to file for each iterantion and variant
+for (td in TODO){
+  assign(td, 
+         experimentalComparison(DSs, 
+                                c(do.call('variants',
+                                  c(list('single', learner=td),
+                                    VARS[td], varRootName = paste('single',td,sep = '.'))),
+                                  do.call('variants',
+                                  c(list('slide', learner = td, relearn.step =c(60,120)),
+                                    VARS[td], varRootName = paste('slide',td,sep = '.'))),
+                                  do.call('variants',
+                                          c(list('grow', learner = td, relearn.step =c(60,120)),
+                                            VARS[td], varRootName = paste('grow',td,sep = '.')))),
+                                MCsetts))
+  # save the results to an Rdata file
+  save(list = td, file = paste(td, 'Rdata', sep = '.'))
+}
