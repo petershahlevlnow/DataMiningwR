@@ -21,7 +21,7 @@ policy.1 <- function(signals, market, opened.pos, money,
   
   # First lets check if we can open new positions
   # i) long positions
-  if (signals[d] =='b' && !nOs){
+  if (signals[d] =='b' && !nOs){ #buy signal and not currently opened position
     quant <- round(bet*money/market[d,'Close'],0)
     if (quant > 0)
       # Note when orders are sent three orders are made 1. open a position, 2. limit order for profit, 3. stop loss
