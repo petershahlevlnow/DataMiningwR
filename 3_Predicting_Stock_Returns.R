@@ -267,11 +267,52 @@ plot(t2, market, theme = "white", name = "SP500")
 #  see test train eval funcs and Monte Carlo .R files
 
 # Results Analysis
+# Monte Carlo is way too computatively intensive. load result data files obtained from the web
+# each file has results from every testtraineval cycle
+load("Data/svmR.Rdata")
+load("Data/svmC.Rdata")
+load("Data/nnetR.Rdata")
+load("Data/nnetC.Rdata")
+load("Data/earth.Rdata")
 
+# use the rank systems based on specified statistics:
+# 1. precision - prec.ab (precision is important because it generates a signal by which trades are opened)
+#   recall is not as important as they represent lost opportunities
+# 2. Return - Ret
+# 3. Return over Buy and hold - RetOverBH
+# 4. Percent of profitable trades - PercProf
+# 5. Risk - Sharpe ratio and Max draw down 
+# subset on specific stats above
+# rankSystems
+tgtStats <- c('prec.sb', 'Ret', 'PercProf', 'MaxDD', 'SharpeRatio')
+allSysRes <- DMwR::join(subset(svmR, stats = tgtStats), 
+                  subset(svmC, stats = tgtStats),
+                  subset(earth, stats= tgtStats),
+                  subset(nnetR, stats = tgtStats),
+                  subset(nnetC, stats = tgtStats), by = 'variants')
 
+rankSystems(allSysRes, 5, maxs = c(T,T,T,F,T))
 
+# some of these variants are useless as they have a precision score of 1, which is due to infrequent
+# trades. These models are useless, shown here
+summary(subset(svmC, stats = c('Ret','RetOverBH', 'PercProf', 'NTrades'), 
+               vars = c('slide.svmC.v5', 'slide.svmC.v6')))
 
+# need to figure out which are the best based on some criteria: Ntrades, Return, profitable trades
+fullResults <- join(svmR, svmC, nnetR, nnetC, earth, by = 'variants')
+nt <- statScores(fullResults, "NTrades")[[1]] # StatScores recieves a CompExp obj and provides the average score for the system
+rt <- statScores(fullResults, "Ret")[[1]]
+pp <- statScores(fullResults, "PercProf")[[1]]
+s1 <- names(nt)[which(nt > 20)] # average more than 20 trades
+s2 <- names(rt)[which(rt > 0.5)] # average more than 0.5% return
+s3 <- names(pp)[which(pp > 40)] # profitable trades > 40%
+namesBest <- intersect(intersect(s1, s2), s3) # find common models in all criteria
+summary(subset(fullResults, stats = tgtStats, vars = namesBest)) # summary of best models that meet constaints (3/240 variants)
 
+# CompAnalysis determines statistical significance for these results
+compAnalysis(subset(fullResults, stats = tgtStats, vars = namesBest))
+# can also plot to get an idea
+plot(subset(fullResults, stats = c("Ret", "PercProf", "MaxDD"), vars = namesBest))
+getVariant("single.nnetR.v12", nnetR) # this one seems interesting for its 2800% return on one iteration
 
-
-
+#
