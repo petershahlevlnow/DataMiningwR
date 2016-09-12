@@ -73,6 +73,71 @@ out[order(out, decreasing = T)[1:10]] # how many outliers per the top 10 product
 sum(out) # outlier sum for all products
 sum(out)/nrow(sales)*100 # proportion of outliers
 
+# 4.2.3.1 data quality problems
+# unknown values
+
+# 3 ways to handle unknown variable values: 1) remove 2) impute 3) strategy to handle as is
+totS <- table(ID)
+totP <- table(Prod)
+nas <- sales[which(is.na(Quant) & is.na(Val)), c("ID", "Prod")] #salespeople involved with problematic transactions
+# find the proportion of of transactions that a salesperson has thats unknown
+propS <-100*table(nas$ID)/totS
+propS[order(propS, decreasing = T)[1:10]] # top 10 proportions
+
+# find the proportion of unknowns for product
+propP <- 100*table(nas$Prod)/totP
+propP[order(propP, decreasing = T)[1:10]] 
+
+# only resonable option is to remove unknowns, see page 176 book for more details
+detach(sales) # if using attach need to use detach if you are getting rid of observations
+sales <- sales [-which(is.na(sales$Val) & is.na(sales$Quant)),]
+# examine quantity unknowns for products
+nnasQp <- tapply(sales$Quant, list(sales$Prod), function(x) sum(is.na(x)))
+propNAsQp <- nnasQp/table(sales$Prod)
+propNAsQp[order(propNAsQp, decreasing = T)[1:10]]
+# two products have all of their transactions with unknown quantities
+# delete 
+sales <- sales[!sales$Prod %in% c("p2442", "p2443"),]
+nlevels(sales$Prod)
+sales$Prod <- factor(sales$Prod)
+nlevels(sales$Prod)
+
+# Are there sales people with all transactions with unknown Quantity?
+nnasQs <- tapply(sales$Quant, list(sales$ID), function(x) sum(is.na(x)))
+propNAsQs <- nnasQs/table(sales$ID)
+propNAsQs[order(propNAsQs, decreasing = T)[1:10]] # it is ok to keep these since we can impute other sales people's unit price into here
+
+# unknown Vals?
+nnasVp <- tapply(sales$Val, list(sales$Prod), function(x) sum(is.na(x)))
+propNAsVp <- nnasVp/table(sales$Prod)
+propNAsVp[order(propNAsVp, decreasing = T)[1:10]]
+
+nnasVs <- tapply(sales$Val, list(sales$ID), function(x) sum(is.na(x)))
+propNAsVs <- nnasVs/table(sales$ID)
+propNAsVs[order(propNAsVs, decreasing = T)[1:10]]
+
+# impute the median unit price for products on transactions 
+tPrice <- tapply(sales[sales$Insp != "fraud", "Uprice"], 
+                 list(sales[sales$Insp != "fraud", "Prod"]), median, na.rm = T)
+# with unit prices and at least Quant or Val we can calculate the other
+# fill in all remaining unknowns with values
+noQuant <- which(is.na(sales$Quant))
+sales[noQuant, 'Quant'] <- ceiling(sales[noQuant, 'Val']/tPrice[sales[noQuant, 'Prod']])
+noVal <- which(is.na(sales$Val))
+sales[noVal, 'Val'] <- sales['noVal', 'Quant'] * tPrice[sales[noVal, 'Prod']]
+
+sales$Uprice <- sales$Val/sales$Quant
+
+save(sales, file = "Data/salesClean.Rdata")
+
+attach(sales)
+
+
+
+
+
+
+
 
 
 
