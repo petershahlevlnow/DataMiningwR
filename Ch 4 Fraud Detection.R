@@ -130,15 +130,47 @@ sales$Uprice <- sales$Val/sales$Quant
 
 save(sales, file = "Data/salesClean.Rdata")
 
-# 
+# 4.2.3.2 Few transactions of Some Products
+# Need to deal with products that have too few transactions.
+# possible to merge products with similar unit prices together
+# can assume the distribution of product unit prices are normally distributed, but will 
+# use the median as the unit of centrality due high number of outliers
 attach(sales)
+notF <- which(Insp != "fraud") #find rows not fraud
+ms <- tapply(Uprice[notF], list(Prod=Prod[notF]), function(x) {
+  bp <- boxplot.stats(x)$stats
+  c(median = bp[3], iqr = bp[4] - bp[2]) 
+}) # get boxplot stats of uprices on products
+ms <- matrix(unlist(ms), length(ms), 2, byrow = T, dimnames = list(names(ms), 
+                                                                   c('median', 'iqr')))
+head(ms)
+# plots 
+par(mfrow = c(1,2))
+plot(ms[,1], ms[,2], xlab = "Median", ylab = "IQR", main = "")
+plot(ms[,1], ms[,2], xlab = "Median", ylab = "IQR", main = "", col = "grey", log = "xy")
+smalls <- which(table(Prod) < 20)
+points(log(ms[smalls, 1]), log(ms[smalls,2]), pch = "+")
 
+# visual inspection is ok, but need a non-parametric test to test the assumption that
+# the unit prices for the products come from same distribution. Kolmogorov-Smirnov test
 
+dms <- scale(ms) # normalize 
+smalls <- which(table(Prod) < 20) # get products with less than 20 transactions
+prods <- tapply(sales$Uprice, sales$Prod, list)
+similar <- matrix(NA, length(smalls), 7, dimnames = list(names(smalls), 
+                                                         c("Simil", "ks.stat", "ks.p",
+                                                           "medP", "iqrP", "medS", "iqrS")))
+for(i in seq(along = smalls)){
+  d <- scale(dms, dms[smalls[i], ], FALSE) # centering scale defined by second arg.
+  d <- sqrt(drop(d^2 %*% rep(1, ncol(d)))) # finds the distribution distances for product "i"
+  # second smallest distance is the closest to product i thus order(d)[2]
+  stat <- ks.test(prods[[smalls[i]]], prods[[order(d)[2]]]) # ks test.
+  similar[i, ] <- c(order(d)[2], stat$statistic, stat$p.value, ms[smalls[i], ], ms[order(d)[2], ])
+}
+head(similar)
 
-
-
-
-
-
-
-
+levels(Prod)[similar[1, 1]]
+# find the number of products that have a unit price distribution statistically similar
+# with 90% confidence
+sum(similar[, "ks.p"] >= .90)
+save(similar, file = "Data/similarProducts.Rdata")
