@@ -130,6 +130,7 @@ sales$Uprice <- sales$Val/sales$Quant
 
 save(sales, file = "Data/salesClean.Rdata")
 
+# 
 attach(sales)
 
 
