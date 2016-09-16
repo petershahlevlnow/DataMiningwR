@@ -174,3 +174,30 @@ levels(Prod)[similar[1, 1]]
 # with 90% confidence
 sum(similar[, "ks.p"] >= .90)
 save(similar, file = "Data/similarProducts.Rdata")
+
+
+# 4.3 Defining the data mining tasks - unsupervised and supervised
+# we'll be ranking the fraud probabilty
+
+# Unsupervised learning -> use when you only have a set of independent variables (i.e descriptive data mining)
+#   Clustering - grouping observations with similars by distance is one method 
+#   Outlier detection - not part of any group. methods we use should detect and rank outliers
+# Supervised portion - we'll use the small portion of marked observations to make predictions
+
+# Classification problem since we are trying to predict a nominal variable (fraud or OK)
+# a challenge is that less frequent identified observations fraud need to appropriate methods
+# need a probablistic ranking for the classification - probablistic classification
+
+# Semi-supervised - methods that can handle both labled and non-labled data. Typically
+# with a smaller proportion that is labled.
+# self-training is an approach of using labled data to build a model then using the model
+# to predict unlabled data. The high confidence unlabled/predicted obserbations are added 
+# to the original labled data and the process is repeated until some convergence metric is 
+# hit.
+
+
+
+
+
+
+
