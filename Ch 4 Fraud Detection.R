@@ -195,9 +195,26 @@ save(similar, file = "Data/similarProducts.Rdata")
 # to the original labled data and the process is repeated until some convergence metric is 
 # hit.
 
+#4.3.2.1 Evaluation criteria - recall and precision
+# we want the known fraud cases to be ranked in the top posistions of our method
+# precision tells us what proportion of the top cases are labeled fraud
+# recall  what proportion of frauds are in the test are included in the k-top most 
 
+# simple example from librarry ROCR to get plots for precisiona and recall
 
+library(ROCR)
+data("ROCR.simple")
+pred <- prediction(ROCR.simple$predictions, ROCR.simple$labels)
+perf <- performance(pred, "prec", "rec")
+plot(perf)
 
+# remove saw tooth from PR curve
+PRcurve <- function(preds, trues, ...){
+  require(ROCR, quietly = T)
+  pd <- prediction(preds, trues)
+  pf <- performance(pd, "prec", "rec")
+  pf@y.values <- lapply(pf@y.values, function(x) rev(cummax(rev(x)))) # cumulative max
+  plot(pf)
+}
 
-
-
+PRcurve(ROCR.simple$predictions, ROCR.simple$labels)
