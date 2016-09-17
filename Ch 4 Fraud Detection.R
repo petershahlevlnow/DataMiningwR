@@ -266,8 +266,8 @@ avgNTDP <- function(toInsp, train, stats){
                     dimnames = list(names(stats), c('median', 'iqr')))
     stats[which(stats[,'iqr']==0), 'iqr'] <- stats[which(stats[,'iqr']==0, 'median')]
   }
-  ndtp <- mean(abs(toInsp$Uprice - stats[toInsp$Prod,'median'])/stats[toInsp$Prod,'iqr'])
-  return(ndtp)
+  mdtp <- mean(abs(toInsp$Uprice - stats[toInsp$Prod,'median'])/stats[toInsp$Prod,'iqr'])
+  return(mdtp)
 }
 
 # the function above recieves the transactions for inspection. 
@@ -290,7 +290,7 @@ avgNTDP <- function(toInsp, train, stats){
 evalOutlierRanking <- function(testSet, rankOrder, Threshold, statsProds){
   ordTS <- testSet[rankOrder, ]
   N <- nrow(testSet)
-  nf <- if (Threshold < 1) as.integer(Threshold*N) else Threshold
+  nF <- if (Threshold < 1) as.integer(Threshold*N) else Threshold
   cm <- table(c(rep('fraud', nF), rep('ok', N-nF)), ordTS$Insp) # confusion matrix
   prec <- cm['fraud', 'fraud']/sum(cm['fraud',])
   rec <- cm['fraud', 'fraud']/sum(cm[,'fraud'])
@@ -306,6 +306,82 @@ evalOutlierRanking <- function(testSet, rankOrder, Threshold, statsProds){
 # test set will be given different modelling techniques that should return a ranking of these transactions
 # according to their estimated probability of being frauds. Internally, the models may
 # decide to anlyze the products individually or all together
+
+# 4.4.1 Unsupervised Approaches
+# The modified box plot rule
+
+# find outliers for near normally distributed variables with boxplots
+# function below takes a training and test set. It gets the median and IQR. Gets
+# an Outlier Score and rank orders test set data
+
+BPrule <- function(train, test){
+  notF <- which(train$Insp != 'fraud')
+  ms <- tapply(train$Uprice[notF], list(Prod=train$Prod[notF]), 
+               function(x){
+                 bp <- boxplot.stats(x)$stats
+                 c(median=bp[3], iqr= bp[4] - bp[2])
+               })
+  ms <- matrix(unlist(ms), length(ms), 2, byrow = T,
+               dimnames = list(names(ms), c('median', 'iqr')))
+  ms[which(ms[,'iqr'] == 0), 'iqr'] <- ms[which(ms[,'iqr'] == 0), 'median']
+  ORscore <- abs(test$Uprice- ms[test$Prod, 'median']) / ms[test$Prod, 'iqr']
+  return(list(rankOrder = order(ORscore, decreasing = T), rankScore = ORscore))
+}
+# Side note: could group products on similiarity in function above. if product has a 
+# distribution of unit prices that is significantly similar. if there is such 
+# a product we could add its transactions and thus obtain the estimate of median
+# IQR for the larger sample. This should be done in the tapply function using data saved to
+# similarProducts.Rdata
+
+# evaluate simple method using holdout strategy.
+
+notF <- which(sales$Insp != 'fraud')
+globalStats <- tapply(sales$Uprice[notF], list(Prod=sales$Prod[notF]), 
+                      function(x){
+                        bp <- boxplot.stats(x)$stats
+                        c(median=bp[3], iqr= bp[4] - bp[2])
+                      })
+globalStats <- matrix(unlist(globalStats), length(globalStats), 2, byrow = T,
+                      dimnames = list(names(globalStats), c('median', 'iqr')))
+globalStats[which(globalStats[,'iqr'] == 0), 'iqr'] <- ms[which(globalStats[,'iqr'] == 0), 'median']
+
+# hold out function needs to call a routine to obtain and evaluate BPrule for each 
+# iterationof the experimental process
+# the following function, which will be called from the holdOut() routine, returns 
+# eval statistics with an attached attribute (extra info) with the predicted and true vals
+
+ho.BPrule <- function(form, train, test,...){
+  res <- BPrule(train, test)
+  structure(evalOutlierRanking(test, res$rankOrder,...),
+            itInfo = list(preds=res$rankScore, trues=ifelse(test$Insp=='fraud', 1, 0)))
+}
+
+bp.res <- holdOut(learner('ho.BPrule',
+                           pars = list(Threshold=0.1,
+                                       statsProds=globalStats)),
+                   dataset(Insp ~. ,sales),
+                   hldSettings(3, 0.3, s =1234, str = T), # (repitions, size, seed, stratified)
+                   itsInfo = TRUE)
+
+summary(bp.res)
+# notes on results only 55% (52% in book) of known frauds are included in the top 10% (threshold)
+# of reports. low values of precision mean that this method is putting mostly unknwn and ok cases
+# in top 10%. avgNTDP means that the difference between the unit price of these reports and
+# the median price of these reports of the same product is around 1.29 (1.8 in book) times
+# the value of the IQR of these prices. 
+
+par(mfrow=c(1,2))
+info <- attr(bp.res, 'itsInfo')
+PTs.bp <- aperm(array(unlist(info), dim=c(length(info[[1]]), 2, 3)), c(1,3,2))
+PRcurve(PTs.bp[ , , 1], PTs.bp[ , , 2], main = 'PR curve', avg ='vertical')
+CRchart(PTs.bp[ , , 1], PTs.bp[ , , 2], main = 'Cumulative Recall curve', avg ='vertical')
+
+# from the cumulative recall curve we can get 40% recall without much effort, but to get
+# 80% recall we would need to inspect 25%-30% of reports
+
+
+
+
 
 
 
