@@ -379,10 +379,62 @@ CRchart(PTs.bp[ , , 1], PTs.bp[ , , 2], main = 'Cumulative Recall curve', avg ='
 # from the cumulative recall curve we can get 40% recall without much effort, but to get
 # 80% recall we would need to inspect 25%-30% of reports
 
+# 4.4.1.2 Local outlier factor
+# obtain a outlier score for each case by estimating its degree of isolation with respect
+# to its local neighborhood. based on density of observations
+# two main concepts 1) core distance p, distance to kth nearest neighbor 2) reachability 
+# distance between p1 and p2, max of core distance and dist between both cases 
+# 3) local reachability inversely proportional to the avg reachability dist to its k neighbors
 
+# function LOF in book package for this, but only takes numeric variables. need to make dummy
+# variables from nominals or just evaluate prods seperately
+# use second method as it's less computationally intense
 
+ho.LOF <- function(form, train, test, k, ...){
+  ntr <- nrow(train)
+  all <- rbind(train, test)
+  N <- nrow(all)
+  ups <- split(all$Uprice, all$Prod) # divide the uint prices of this 
+                                     # full dataset by product
+  r <- list(length = ups)
+  for(u in seq(along=ups)) # applies LOF to each these sets of prices and applies 
+                           # the LOF method to obtain an outlier factor for each 
+                           # of the factors
+    r[[u]] <- if (NROW(ups[[u]]) > 3)
+                  lofactor(ups[[u]], min(k, NROW(ups[[u]]) %/% 2))
+              else if (NROW(ups[[u]])) rep(0, NROW(ups[[u]]))
+              else NULL
+  all$lof <- vector(length = N)
+  split(all$lof, all$Prod) <- r # obtained outliers are attached to respective transactions
+  all$lof[which(!(is.infinite(all$lof) | is.nan(all$lof)))] <- 
+      SoftMax(all$lof[which(!(is.infinite(all$lof) | is.nan(all$lof)))]) # chages outlier factor
+                                                                         # into 0..1 scale
+  structure(evalOutlierRanking(test, order(all[(ntr + 1):N, 'lof'], decreasing = T),...),
+            itInfo = list(preds=all[(ntr + 1):N, 'lof'], trues=ifelse(test$Insp=='fraud', 1, 0)))
+            # eval scores, predicted, and trues
+}
 
+# hold out strategy
 
+lof.res <- holdOut(learner('ho.LOF',
+                          pars = list(k=7, Threshold=0.1,
+                                      statsProds=globalStats)),
+                  dataset(Insp ~. ,sales),
+                  hldSettings(3, 0.3, s =1234, str = T), # (repitions, size, seed, stratified)
+                  itsInfo = TRUE)
+summary(lof.res)
+
+par(mfrow=c(1,2))
+info <- attr(lof.res, 'itsInfo')
+PTs.lof <- aperm(array(unlist(info), dim=c(length(info[[1]]), 2, 3)), c(1,3,2))
+PRcurve(PTs.bp[ , , 1], PTs.bp[ , , 2], main = 'PR curve', lty = 1, xlim=c(0,1), 
+        ylim = c(0,1), avg ='vertical')
+PRcurve(PTs.lof[ , , 1], PTs.lof[ , , 2], lty = 2, add = T,  avg ='vertical')
+legend('topright', c('BPrule', 'LOF'), lty = c(1,2))
+CRchart(PTs.bp[ , , 1], PTs.bp[ , , 2], main = 'Cumulative Recall curve', lty = 1, xlim=c(0,1),
+        ylim = c(0,1), avg ='vertical')
+CRchart(PTs.lof[ , , 1], PTs.lof[ , , 2], add= T, lty = 2, avg ='vertical')
+legend('bottomright', c('BPrule', 'LOF'), lty = c(1,2))
 
 
 
