@@ -242,3 +242,74 @@ CRchart <- function(preds, trues, ...){
 }
 
 CRchart(ROCR.simple$predictions, ROCR.simple$labels, main = 'Cumulative Recall')
+
+# 4.3.2.3 Normalized Distance to Typical Price
+# can use distance from typical unit price to determine outliers for unlabeled observations
+# we need to normalize the distance unit to avoid running into differing scale issues
+# use IQR to normalize distance
+# NDTPp(u) = |u-Up| / IQRp, Up is typical unit price for product, IQRp is the interquartile
+# range for unit prices for product
+
+avgNTDP <- function(toInsp, train, stats){
+  if(missing(train) && missing(stats))
+    stop('provide either training data or product stats')
+  if(missing(stats)){
+    notF <- which(train$Insp != 'fraud')
+    stats <- tapply(train$Uprice[notF],
+                    list(Prod=train$Prod[notF]),
+                    function(x) {
+                      bp <- boxplot.stats(x)$stats
+                      c(median=bp[3], iqr=bp[4] -bp[2])
+                    })
+    stats <- matrix(unlist(stats),
+                    length(stats), 2, byrow = T,
+                    dimnames = list(names(stats), c('median', 'iqr')))
+    stats[which(stats[,'iqr']==0), 'iqr'] <- stats[which(stats[,'iqr']==0, 'median')]
+  }
+  ndtp <- mean(abs(toInsp$Uprice - stats[toInsp$Prod,'median'])/stats[toInsp$Prod,'iqr'])
+  return(ndtp)
+}
+
+# the function above recieves the transactions for inspection. 
+# if training data but not stats is supplied then function calculates the IQR values and median
+#   of non-fraudulent transactions
+# if stats is supplied then the function goes straight to calculation of NDTP
+# IQR may be zero for cases with few transactions. to avoid division by zero we set these cases
+# to the value of the median
+
+# 4.3.3 Experimental Methodology
+# Our transaction data can be split 70% to 30%, where 30% is the test set
+# WE have an imbalance with cases that are labled to not. To avoid distributions issues
+# use a stratified sampling. 
+# need to repspect the original proportions of the data by pulling random samples from two
+# different bags class x = 10% class y =90%, we want 100 cases. Observations are broken into 
+# two sets X & Y. 10 are chosen from X and 90 are chosen from Y, randomly.
+# the holdout() function can make this process easy.
+
+# function below calculates evaluation statistics - recall, precision, NDTP of sample
+evalOutlierRanking <- function(testSet, rankOrder, Threshold, statsProds){
+  ordTS <- testSet[rankOrder, ]
+  N <- nrow(testSet)
+  nf <- if (Threshold < 1) as.integer(Threshold*N) else Threshold
+  cm <- table(c(rep('fraud', nF), rep('ok', N-nF)), ordTS$Insp) # confusion matrix
+  prec <- cm['fraud', 'fraud']/sum(cm['fraud',])
+  rec <- cm['fraud', 'fraud']/sum(cm[,'fraud'])
+  AVGntdp <- avgNTDP(ordTS[nF, ], stats = statsProds)
+  return(c(Precision = prec, Recall = rec, avgNTDP = AVGntdp))
+}
+# args = test set, ranking proposed by model, threshold specifying an inspection limit (% or count)
+# statistics (median and IQR) of products
+
+# We could put all products together then analyze
+# Or WE could obtain a ranking for inspection for each product then make a global list
+# But we will put all products toghther, get a stratified random sample/hold out, this 
+# test set will be given different modelling techniques that should return a ranking of these transactions
+# according to their estimated probability of being frauds. Internally, the models may
+# decide to anlyze the products individually or all together
+
+
+
+
+
+
+
