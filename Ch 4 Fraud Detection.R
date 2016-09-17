@@ -214,7 +214,31 @@ PRcurve <- function(preds, trues, ...){
   pd <- prediction(preds, trues)
   pf <- performance(pd, "prec", "rec")
   pf@y.values <- lapply(pf@y.values, function(x) rev(cummax(rev(x)))) # cumulative max, and reverse vector
-  plot(pf)
+  plot(pf, ...)
 }
 
 PRcurve(ROCR.simple$predictions, ROCR.simple$labels)
+
+# confusion matrix example
+
+#         Predictions
+#         ok      Fraud               total
+# True ok 3       1                   4
+#         2       1                   3 (precision = 1 /(1+2))
+#   total 5       2(recall = 1/(1+1)) 7    
+#
+# lift charts give more importance to recall thus fit our objective better
+# x = rate of positive predictions y = recall
+
+pred <- prediction(ROCR.simple$predictions, ROCR.simple$labels)
+pref <- performance(pred, "lift", "rpp")
+plot(perf, main = "Lift Chart")
+
+CRchart <- function(preds, trues, ...){
+  require(ROCR, quietly = T)
+  pd <- prediction(preds, trues)
+  pf <- performance(pd, "rec", "rpp")
+  plot(pf, ...)
+}
+
+CRchart(ROCR.simple$predictions, ROCR.simple$labels, main = 'Cumulative Recall')
