@@ -213,7 +213,7 @@ PRcurve <- function(preds, trues, ...){
   require(ROCR, quietly = T)
   pd <- prediction(preds, trues)
   pf <- performance(pd, "prec", "rec")
-  pf@y.values <- lapply(pf@y.values, function(x) rev(cummax(rev(x)))) # cumulative max
+  pf@y.values <- lapply(pf@y.values, function(x) rev(cummax(rev(x)))) # cumulative max, and reverse vector
   plot(pf)
 }
 
