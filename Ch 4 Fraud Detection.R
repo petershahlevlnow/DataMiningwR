@@ -491,9 +491,120 @@ CRchart(PTs.lof[ , , 1], PTs.lof[ , , 2], add= T, col = 'grey', avg ='vertical')
 CRchart(PTs.orh[ , , 1], PTs.orh[ , , 2], add= T, col = 'red', avg ='vertical')
 legend('bottomright', c('BPrule', 'LOF', 'ORh'), lty = c(1,1,1), col = c('black','grey','red'))
 
+# 4.4.2 Supervised Approaches 
+# ranking reports based on probability of each class and target class
 
+# 4.4.2.1 class imbalance - our dataset suffers from this. Only 8.1% of inspected reports are 
+# fraud. Algorithms tend to ignore minority classes in prediction because they don't have statistical
+# support, which is problematic when the minority class is your most relevant. 
+# methods to overcome this:
+# 1) methods that bias the learning process by using specific eval metrics that are more sensitive to minority class
+# 2) sampling methods that monipulate the training data to change the class distribution
+# we'll use the second in this example
+# few ways to change the class distribution - 1) undersampling the majority and to the minority cases
+# 2) over sampling works the other way around
+# SMOTE - artificially generate new examples of the minority class using the nearest neighbor of these cases
+# Furthermore, majority class is also under-sampled
+# ex:
+data(iris)
+data <- iris[, c(1,2,5)]
+data$Species <- factor(ifelse(data$Species == "setosa", "rare", "common"))
+newData <- SMOTE(Species ~ ., data, perc.over = 600) # perc.over means x more cases for each of the original minority
+table(newData$Species)
 
+# visually see what happens
+par(mfrow=c(1,2))
+plot(data[,1], data[,2], pch = 19 + as.integer(data[,3]), main = "Original Data")
+plot(newData[,1], newData[,2], pch = 19 + as.integer(newData[,3]), main = "SMOTE'd Data")
 
+# 4.4.2.2 Naive Bayes
+# probabalistic classifier
+# Naive Bayes uses bayes theorem - P(A|B)= (P(B|A)*P(A)/P(B))
+# calculates probabilty of each class for a given test case by 
+# P(c|X1,...Xp) = P(c)*P(X1,...Xp|c)/P(X1,...,Xp)
+# function below implements this and ranks the outlier on probability of the fraud class
 
+nb <- function(train, test){
+  require(e1071, quietly =T)
+  sup <- which(train$Insp != "unkn")
+  data <- train[sup, c("ID", "Prod", "Uprice", "Insp")]
+  data$Insp <- factor(data$Insp, levels = c("ok", "fraud"))
+  model <- naiveBayes(Insp ~ ., data)
+  preds <- predict(model, test[, c("ID", "Prod", "Uprice", "Insp")], type = "raw")
+  return(list(rankOrder = order(preds[,"fraud"], decreasing = T), rankScore = preds[, "fraud"]))
+}
 
+# hold out strategy function call
+ho.nb <- function(form, train, test, ...){
+  res <- nb(train, test)
+  structure(evalOutlierRanking(test, res$rankOrder,...),
+            itInfo = list(preds=res$rankScore, trues=ifelse(test$Insp=='fraud', 1, 0)))
+}
+
+# call holdout 
+nb.res <-  holdOut(learner('ho.nb',
+                           pars = list(Threshold=0.1,
+                                       statsProds=globalStats)),
+                   dataset(Insp ~. ,sales),
+                   hldSettings(3, 0.3, s =1234, str = T), # (repitions, size, seed, stratified)
+                   itsInfo = TRUE)
+summary(nb.res)
+
+# visually compare to ORh (unsupervised)
+par(mfrow=c(1,2))
+info <- attr(nb.res, 'itsInfo')
+PTs.nb <- aperm(array(unlist(info), dim=c(length(info[[1]]), 2, 3)), c(1,3,2))
+PRcurve(PTs.nb[ , , 1], PTs.nb[ , , 2], main = 'PR curve', lty = 1, xlim=c(0,1), 
+        ylim = c(0,1), avg ='vertical')
+PRcurve(PTs.orh[ , , 1], PTs.orh[ , , 2], col='red', add = T,  avg ='vertical')
+legend('topright', c('Naive Bayes', 'ORh'), lty= c(1,1), col = c('black','red'))
+CRchart(PTs.nb[ , , 1], PTs.nb[ , , 2], main = 'Cumulative Recall curve', lty = 1, xlim=c(0,1),
+        ylim = c(0,1), avg ='vertical')
+CRchart(PTs.orh[ , , 1], PTs.orh[ , , 2], add= T, col = 'red', avg ='vertical')
+legend('bottomright', c('BPrule', 'LOF', 'ORh'), lty = c(1,1), col = c('black','red'))
+
+# Poor perfomance relative to ORh maybe due to class imbalance. Use SMOTE with NB
+nb.s <- function(train, test){
+  require(e1071, quietly =T)
+  sup <- which(train$Insp != "unkn")
+  data <- train[sup, c("ID", "Prod", "Uprice", "Insp")]
+  data$Insp <- factor(data$Insp, levels = c("ok", "fraud"))
+  newData <- SMOTE(Insp ~ ., data, perc.over = 700) # using SMOTE to deal with class imbalance
+  model <- naiveBayes(Insp ~ ., newData)
+  preds <- predict(model, test[, c("ID", "Prod", "Uprice", "Insp")], type = "raw")
+  return(list(rankOrder = order(preds[,"fraud"], decreasing = T), rankScore = preds[, "fraud"]))
+}
+
+# call holdout 
+ho.nbs <- function(form, train, test, ...){
+  res <- nb.s(train, test)
+  structure(evalOutlierRanking(test, res$rankOrder,...),
+            itInfo = list(preds=res$rankScore, trues=ifelse(test$Insp=='fraud', 1, 0)))
+}
+
+nbs.res <-  holdOut(learner('ho.nbs',
+                           pars = list(Threshold=0.1,
+                                       statsProds=globalStats)),
+                   dataset(Insp ~. ,sales),
+                   hldSettings(3, 0.3, s =1234, str = T), # (repitions, size, seed, stratified)
+                   itsInfo = TRUE)
+
+summary(nbs.res)
+
+# visually compare to ORh (unsupervised) and nb
+par(mfrow=c(1,2))
+info <- attr(nbs.res, 'itsInfo')
+PTs.nbs <- aperm(array(unlist(info), dim=c(length(info[[1]]), 2, 3)), c(1,3,2))
+PRcurve(PTs.nbs[ , , 1], PTs.nbs[ , , 2], main = 'PR curve', lty = 1, xlim=c(0,1), 
+        ylim = c(0,1), avg ='vertical')
+PRcurve(PTs.nb[ , , 1], PTs.nb[ , , 2], col='grey', add = T,  avg ='vertical')
+PRcurve(PTs.orh[ , , 1], PTs.orh[ , , 2], col='red', add = T,  avg ='vertical')
+legend('topright', c('SMOTE NB', 'Naive Bayes', 'ORh'), lty= c(1,1,1), col = c('black','grey','red'))
+CRchart(PTs.nbs[ , , 1], PTs.nbs[ , , 2], main = 'Cumulative Recall curve', lty = 1, xlim=c(0,1),
+        ylim = c(0,1), avg ='vertical')
+CRchart(PTs.nb[ , , 1], PTs.nb[ , , 2], add= T, col = 'grey', avg ='vertical')
+CRchart(PTs.orh[ , , 1], PTs.orh[ , , 2], add= T, col = 'red', avg ='vertical')
+legend('bottomright', c('SMOTE NB', 'Naive Bayes', 'ORh'), lty = c(1,1,1), col = c('black','grey', 'red'))
+
+# the SMOTE and NB both underperform the ORh 
 
