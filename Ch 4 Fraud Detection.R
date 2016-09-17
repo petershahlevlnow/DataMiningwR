@@ -437,6 +437,62 @@ CRchart(PTs.lof[ , , 1], PTs.lof[ , , 2], add= T, lty = 2, avg ='vertical')
 legend('bottomright', c('BPrule', 'LOF'), lty = c(1,2))
 
 
+# 4.4.1.3 Clustering Based Oulier Rankings (ORh)
+# clustering to obtain dendreon - clusterings of merging data in steps
+# ie hierachical clustering
+# the thought here is that outliers will avoid earlier merging because of dissimalarity 
+# so they will be merged toghether last
+
+ho.ORh <- function(form, train, test,...){
+   ntr <- nrow(train)
+   all <- rbind(train, test)
+   N <- nrow(all)
+   ups <- split(all$Uprice, all$Prod) # divide the uint prices of this 
+  # full dataset by product
+   r <- list(length = ups)
+   for(u in seq(along=ups)) # applies LOF to each these sets of prices and applies 
+     # the LOF method to obtain an outlier factor for each 
+     # of the factors
+    r[[u]] <- if (NROW(ups[[u]]) > 3)
+                  outliers.ranking(ups[[u]])$prob.outliers
+              else if (NROW(ups[[u]])) rep(0, NROW(ups[[u]]))
+              else NULL
+   all$orh <- vector(length = N)
+   split(all$orh, all$Prod) <- r # obtained outliers are attached to respective transactions
+   all$orh[which(!(is.infinite(all$orh) | is.nan(all$orh)))] <- 
+      SoftMax(all$orh[which(!(is.infinite(all$orh) | is.nan(all$orh)))]) # chages outlier factor
+   # into 0..1 scale
+   structure(evalOutlierRanking(test, order(all[(ntr + 1):N, 'orh'], decreasing = T),...),
+            itInfo = list(preds=all[(ntr + 1):N, 'orh'], trues=ifelse(test$Insp=='fraud', 1, 0)))
+    # eval scores, predicted, and trues
+}
+
+# this is too computationally intense, so use data file
+orh.res <- holdOut(learner('ho.ORh',
+                           pars = list(Threshold=0.1,
+                                       statsProds=globalStats)),
+                   dataset(Insp ~. ,sales),
+                   hldSettings(3, 0.3, s =1234, str = T), # (repitions, size, seed, stratified)
+                   itsInfo = TRUE)
+load("Data/ORHresults.Rdata")
+summary(orh.res)
+
+par(mfrow=c(1,2))
+info <- attr(orh.res, 'itsInfo')
+PTs.orh <- aperm(array(unlist(info), dim=c(length(info[[1]]), 2, 3)), c(1,3,2))
+PRcurve(PTs.bp[ , , 1], PTs.bp[ , , 2], main = 'PR curve', lty = 1, xlim=c(0,1), 
+        ylim = c(0,1), avg ='vertical')
+PRcurve(PTs.lof[ , , 1], PTs.lof[ , , 2], col='grey', add = T,  avg ='vertical')
+PRcurve(PTs.orh[ , , 1], PTs.orh[ , , 2], col='red', add = T,  avg ='vertical')
+legend('topright', c('BPrule', 'LOF','ORh'), lty= c(1,1,1), col = c('black','grey','red'))
+CRchart(PTs.bp[ , , 1], PTs.bp[ , , 2], main = 'Cumulative Recall curve', lty = 1, xlim=c(0,1),
+        ylim = c(0,1), avg ='vertical')
+CRchart(PTs.lof[ , , 1], PTs.lof[ , , 2], add= T, col = 'grey', avg ='vertical')
+CRchart(PTs.orh[ , , 1], PTs.orh[ , , 2], add= T, col = 'red', avg ='vertical')
+legend('bottomright', c('BPrule', 'LOF', 'ORh'), lty = c(1,1,1), col = c('black','grey','red'))
+
+
+
 
 
 
