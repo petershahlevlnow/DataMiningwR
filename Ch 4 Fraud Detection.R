@@ -611,15 +611,25 @@ legend('bottomright', c('SMOTE NB', 'Naive Bayes', 'ORh'), lty = c(1,1,1), col =
 
 # 4.4.2.3 AdaBoost
 # belongs to an ensemble models - base models that contribute to the prediction algorithm using
-# some form of aggregation
-# adaptive boosting method to obtain a set of baseline models
+# some form of aggregation. 
+# adaptive boosting method to obtain a set of baseline models. sequentially improving on errors
+# improvements are made using weighting schema that increases the weights of the cases that are 
+# incorrectly classified in previous model. predictions are based on the weighted average of the
+# prediction of individual base models.
 # using RWeka, can also use adabag::adboost.M1() but predict doesn't return class probabilities
 # which is an issue.
 
 library(RWeka)
 WOW(AdaBoostM1)
+data(iris)
+idx <- sample(150, 100)
+model <- AdaBoostM1(Species ~., iris[idx, ], control = Weka_control(I=100))
+preds <- predict(model, iris[-idx,])
 
-# using adabag since updates to adabag::predict.boosting return probabilites
+
+# using adabag since updates to adabag::predict.boosting return probabilites??
+# Doesn't work...RWeka throws Java version errors. Can't figure out AdaBag....
+# Code is below but doesn't work going to load results from website.
 library(adabag)
 data(iris)
 idx <- sample(150, 100)
@@ -636,18 +646,237 @@ ab <- function(train, test){
   data$Insp <- factor(data$Insp, levels = c("ok", "fraud"))
   model <- boosting(Insp ~ ., data, mfinal = 1)
   preds <- predict.boosting(model, test[, c("ID", "Prod", "Uprice", "Insp")])
-  return(list(rankOrder = order(preds$prob[,'fraud'], decreasing = T), rankScore = preds$prob[, 'fraud']))
+  return(preds)
+  #return(list(rankOrder = order(preds$prob[,'fraud'], decreasing = T), rankScore = preds$prob[, 'fraud']))
 }
 
 ho.ab <- function(form, train, test, ...){
   res <- ab(train, test)
-  structure(evalOutlierRanking(test, res$rankOrder,...),
-            itInfo = list(preds=res$rankScore, trues=ifelse(test$Insp=='fraud', 1, 0)))
+  #structure(evalOutlierRanking(test, res$rankOrder,...),
+  #          itInfo = list(preds=res$rankScore, trues=ifelse(test$Insp=='fraud', 1, 0)))
 }
 
-nbs.res <-  holdOut(learner('ho.ab',
+ab.res <-  holdOut(learner('ho.ab',
                             pars = list(Threshold=0.1,
                                         statsProds=globalStats)),
                     dataset(Insp ~. ,sales),
                     hldSettings(3, 0.3, s =1234, str = T), # (repitions, size, seed, stratified)
                     itsInfo = TRUE)
+###################################################
+### AdaBoost with RWeka
+###################################################
+library(RWeka)
+WOW(AdaBoostM1)
+
+
+data(iris)
+idx <- sample(150,100)
+model <- AdaBoostM1(Species ~ .,iris[idx,],
+                    control=Weka_control(I=100))
+preds <- predict(model,iris[-idx,])
+head(preds)
+table(preds,iris[-idx,'Species'])
+prob.preds <- predict(model,iris[-idx,],type='probability')
+head(prob.preds)
+
+
+ab <- function(train,test) {
+  require(RWeka,quietly=T)
+  sup <- which(train$Insp != 'unkn')
+  data <- train[sup,c('ID','Prod','Uprice','Insp')]
+  data$Insp <- factor(data$Insp,levels=c('ok','fraud'))
+  model <- AdaBoostM1(Insp ~ .,data,
+                      control=Weka_control(I=100))
+  preds <- predict(model,test[,c('ID','Prod','Uprice','Insp')],
+                   type='probability')
+  return(list(rankOrder=order(preds[,'fraud'],decreasing=T),
+              rankScore=preds[,'fraud'])
+  )
+}
+
+
+ho.ab <- function(form, train, test, ...) {
+  res <- ab(train,test)
+  structure(evalOutlierRanking(test,res$rankOrder,...),
+            itInfo=list(preds=res$rankScore,
+                        trues=ifelse(test$Insp=='fraud',1,0)
+            )
+  )
+}
+
+
+ab.res <- holdOut(learner('ho.ab',
+                          pars=list(Threshold=0.1,
+                                    statsProds=globalStats)),
+                  dataset(Insp ~ .,sales),
+                  hldSettings(3,0.3,1234,T),
+                  itsInfo=TRUE
+)
+
+
+summary(ab.res)
+
+load("Data/ABresults.RData")
+
+par(mfrow=c(1,2))
+info <- attr(ab.res, 'itsInfo')
+PTs.ab <- aperm(array(unlist(info), dim=c(length(info[[1]]), 2, 3)), c(1,3,2))
+PRcurve(PTs.ab[ , , 1], PTs.ab[ , , 2], main = 'PR curve', lty = 1, xlim=c(0,1), 
+        ylim = c(0,1), avg ='vertical')
+PRcurve(PTs.nb[ , , 1], PTs.nb[ , , 2], col='grey', add = T,  avg ='vertical')
+PRcurve(PTs.orh[ , , 1], PTs.orh[ , , 2], col='red', add = T,  avg ='vertical')
+legend('topright', c('AdaBoost', 'Naive Bayes', 'ORh'), lty= c(1,1,1), col = c('black','grey','red'))
+CRchart(PTs.ab[ , , 1], PTs.ab[ , , 2], main = 'Cumulative Recall curve', lty = 1, xlim=c(0,1),
+        ylim = c(0,1), avg ='vertical')
+CRchart(PTs.nb[ , , 1], PTs.nb[ , , 2], add= T, col = 'grey', avg ='vertical')
+CRchart(PTs.orh[ , , 1], PTs.orh[ , , 2], add= T, col = 'red', avg ='vertical')
+legend('bottomright', c('AdaBoost', 'Naive Bayes', 'ORh'), lty = c(1,1,1), col = c('black','grey', 'red'))
+
+# cumalative recall is as good ORh, which is what we are looking for. 
+# 4.4.3 Semi-Supervised - using inspected and non-inspected reports to obtain classification model
+# Self training - building an initial classifier using the given labeled cases, then predict unlabeled
+# higher confidence predictions are added to the initial model and iterated for classification.
+# self training method needs 1) base learner 2) threshold on the confidence of classifications 3)
+# criteria to decide when to terminate process
+
+# example with iris data
+library(DMwR)
+library(e1071)
+data(iris)
+idx <- sample(150, 100) # get 100 labled samples, row index random 1...150
+tr <- iris[idx, ] # train
+ts <- iris[-idx, ] # test
+nb <- naiveBayes(Species ~., tr) # first naive bayes
+table(predict(nb, ts), ts$Species)
+
+trST <- tr
+nas <- sample(100, 90) # get 90 samples and label them as NA
+trST[nas, "Species"] <- NA 
+func <- function(m,d) { # must make this function if using self train
+  p <- predict(m,d,type='raw')
+  data.frame(cl=colnames(p)[apply(p,1,which.max)],p=apply(p,1,max)) # func returns a data frame with
+  # first column - predicted cases with labels, second column - respective probability of that classification
+}
+
+nbSTbase <- naiveBayes(Species ~., trST[-nas, ]) # 2nd nb for the base model with remaining 10 samples
+table(predict(nbSTbase, ts), ts$Species)
+nbST <- SelfTrain(Species ~., trST, learner("naiveBayes", list()), "func") # self train with labeled and unlabeled cases
+table(predict(nbST, ts), ts$Species)
+
+# other notes on self train - parameters - thrConf sets probability required for an unlabeled to be 
+# merged into a labeled set. Parameter maxits - iterations, percFull - when the process should stop.
+# unlabeled cases must be signaled with NA
+
+pred.nb <- function(m,d) {
+  p <- predict(m,d,type='raw')
+  data.frame(cl=colnames(p)[apply(p,1,which.max)], p=apply(p,1,max))
+}
+nb.st <- function(train,test) {
+  require(e1071,quietly=T)
+  train <- train[,c('ID','Prod','Uprice','Insp')]
+  train[which(train$Insp == 'unkn'),'Insp'] <- NA
+  train$Insp <- factor(train$Insp,levels=c('ok','fraud'))
+  model <- SelfTrain(Insp ~ .,train, learner('naiveBayes', list()),'pred.nb')
+  preds <- predict(model,test[,c('ID','Prod','Uprice','Insp')], type='raw')
+  return(list(rankOrder=order(preds[,'fraud'],decreasing=T), rankScore=preds[,'fraud']))
+}
+ho.nb.st <- function(form, train, test, ...) {
+  res <- nb.st(train,test)
+  structure(evalOutlierRanking(test,res$rankOrder,...),
+            itInfo=list(preds=res$rankScore, trues=ifelse(test$Insp=='fraud',1,0)))
+}
+
+nb.st.res <- holdOut(learner('ho.nb.st',
+                             pars=list(Threshold=0.1,
+                                       statsProds=globalStats)),
+                     dataset(Insp ~ .,sales),
+                     hldSettings(3,0.3,1234,T),
+                     itsInfo=TRUE
+)
+
+
+summary(nb.st.res)
+
+
+par(mfrow=c(1,2))
+info <- attr(nb.st.res,'itsInfo')
+PTs.nb.st <- aperm(array(unlist(info), dim=c(length(info[[1]]),2,3)), c(1,3,2))
+PRcurve(PTs.nb[,,1],PTs.nb[,,2], main='PR curve',lty=1, xlim=c(0,1), ylim=c(0,1), avg='vertical')
+PRcurve(PTs.orh[,,1],PTs.orh[,,2], add=T,lty=1,col='grey', avg='vertical')        
+PRcurve(PTs.nb.st[,,1],PTs.nb.st[,,2], add=T,lty=2, avg='vertical')        
+legend('topright',c('NaiveBayes','ORh','NaiveBayes-ST'), lty=c(1,1,2),col=c('black','grey','black'))
+CRchart(PTs.nb[,,1],PTs.nb[,,2], main='Cumulative Recall curve',lty=1,xlim=c(0,1),ylim=c(0,1), avg='vertical')
+CRchart(PTs.orh[,,1],PTs.orh[,,2], add=T,lty=1,col='grey', avg='vertical')        
+CRchart(PTs.nb.st[,,1],PTs.nb.st[,,2], add=T,lty=2, avg='vertical')        
+legend('bottomright',c('NaiveBayes','ORh','NaiveBayes-ST'), lty=c(1,1,2),col=c('black','grey','black'))
+
+
+pred.ada <- function(m,d) { 
+  p <- predict(m,d,type='probability')
+  data.frame(cl=colnames(p)[apply(p,1,which.max)], p=apply(p,1,max))
+} 
+ab.st <- function(train,test) {
+  require(RWeka,quietly=T)
+  train <- train[,c('ID','Prod','Uprice','Insp')]
+  train[which(train$Insp == 'unkn'),'Insp'] <- NA
+  train$Insp <- factor(train$Insp,levels=c('ok','fraud'))
+  model <- SelfTrain(Insp ~ .,train,
+                     learner('AdaBoostM1',
+                             list(control=Weka_control(I=100))),
+                     'pred.ada')
+  preds <- predict(model,test[,c('ID','Prod','Uprice','Insp')],
+                   type='probability')
+  return(list(rankOrder=order(preds[,'fraud'],decreasing=T),
+              rankScore=preds[,'fraud'])
+  )
+}
+ho.ab.st <- function(form, train, test, ...) {
+  res <- ab.st(train,test)
+  structure(evalOutlierRanking(test,res$rankOrder,...),
+            itInfo=list(preds=res$rankScore,
+                        trues=ifelse(test$Insp=='fraud',1,0)
+            )
+  )
+}
+ab.st.res <- holdOut(learner('ho.ab.st',
+                             pars=list(Threshold=0.1,
+                                       statsProds=globalStats)),
+                     dataset(Insp ~ .,sales),
+                     hldSettings(3,0.3,1234,T),
+                     itsInfo=TRUE
+)
+
+
+summary(ab.st.res)
+
+load("Data/ABSTresults.Rdata")
+
+par(mfrow=c(1,2))
+info <- attr(ab.st.res,'itsInfo')
+PTs.ab.st <- aperm(array(unlist(info),dim=c(length(info[[1]]),2,3)),
+                   c(1,3,2)
+)
+PRcurve(PTs.ab[,,1],PTs.ab[,,2],
+        main='PR curve',lty=1,xlim=c(0,1),ylim=c(0,1),
+        avg='vertical')
+PRcurve(PTs.orh[,,1],PTs.orh[,,2],
+        add=T,lty=1,col='grey',
+        avg='vertical')        
+PRcurve(PTs.ab.st[,,1],PTs.ab.st[,,2],
+        add=T,lty=2,
+        avg='vertical')        
+legend('topright',c('AdaBoostM1','ORh','AdaBoostM1-ST'),
+       lty=c(1,1,2),col=c('black','grey','black'))
+CRchart(PTs.ab[,,1],PTs.ab[,,2],
+        main='Cumulative Recall curve',lty=1,xlim=c(0,1),ylim=c(0,1),
+        avg='vertical')
+CRchart(PTs.orh[,,1],PTs.orh[,,2],
+        add=T,lty=1,col='grey',
+        avg='vertical')        
+CRchart(PTs.ab.st[,,1],PTs.ab.st[,,2],
+        add=T,lty=2,
+        avg='vertical')        
+legend('bottomright',c('AdaBoostM1','ORh','AdaBoostM1-ST'),
+       lty=c(1,1,2),col=c('black','grey','black'))
+
+
