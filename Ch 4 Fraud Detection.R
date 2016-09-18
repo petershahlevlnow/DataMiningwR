@@ -606,5 +606,48 @@ CRchart(PTs.nb[ , , 1], PTs.nb[ , , 2], add= T, col = 'grey', avg ='vertical')
 CRchart(PTs.orh[ , , 1], PTs.orh[ , , 2], add= T, col = 'red', avg ='vertical')
 legend('bottomright', c('SMOTE NB', 'Naive Bayes', 'ORh'), lty = c(1,1,1), col = c('black','grey', 'red'))
 
-# the SMOTE and NB both underperform the ORh 
+# the SMOTE and NB both underperform the ORh which may be due to not splitting the model based on
+# product.
 
+# 4.4.2.3 AdaBoost
+# belongs to an ensemble models - base models that contribute to the prediction algorithm using
+# some form of aggregation
+# adaptive boosting method to obtain a set of baseline models
+# using RWeka, can also use adabag::adboost.M1() but predict doesn't return class probabilities
+# which is an issue.
+
+library(RWeka)
+WOW(AdaBoostM1)
+
+# using adabag since updates to adabag::predict.boosting return probabilites
+library(adabag)
+data(iris)
+idx <- sample(150, 100)
+model <- boosting(Species ~., iris[idx, ], mfinal = 100)
+preds <- predict.boosting(model, iris[-idx,])
+head(preds)
+head(preds$prob)
+table(preds, iris[-idx, 'Species'])
+
+ab <- function(train, test){
+  require(adabag, quietly =T)
+  sup <- which(train$Insp != "unkn")
+  data <- train[sup, c("ID", "Prod", "Uprice", "Insp")]
+  data$Insp <- factor(data$Insp, levels = c("ok", "fraud"))
+  model <- boosting(Insp ~ ., data, mfinal = 1)
+  preds <- predict.boosting(model, test[, c("ID", "Prod", "Uprice", "Insp")])
+  return(list(rankOrder = order(preds$prob[,'fraud'], decreasing = T), rankScore = preds$prob[, 'fraud']))
+}
+
+ho.ab <- function(form, train, test, ...){
+  res <- ab(train, test)
+  structure(evalOutlierRanking(test, res$rankOrder,...),
+            itInfo = list(preds=res$rankScore, trues=ifelse(test$Insp=='fraud', 1, 0)))
+}
+
+nbs.res <-  holdOut(learner('ho.ab',
+                            pars = list(Threshold=0.1,
+                                        statsProds=globalStats)),
+                    dataset(Insp ~. ,sales),
+                    hldSettings(3, 0.3, s =1234, str = T), # (repitions, size, seed, stratified)
+                    itsInfo = TRUE)
