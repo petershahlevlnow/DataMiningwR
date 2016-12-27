@@ -268,3 +268,47 @@ vars$knn <-  list(k = c(3, 5, 7, 13),
                   fs.meth = list(list('all'),
                                  list('rf', 30),
                                  list('varclus', 30, 50)))
+
+# see file genericModel and varsEnsemble 
+# the below code executes the experimental procedure with the above vars and supporting functions
+# it takes too long so don't execute. It uses experimentalComparison from book package to do 
+# a LOOCV.
+
+####### DO NOT EXECUTE ######
+
+require(class,quietly=TRUE)
+require(randomForest,quietly=TRUE)
+require(e1071,quietly=TRUE)
+load('myALL.Rdata')
+es <- exprs(ALLb)
+# simple filtering
+ALLb <- nsFilter(ALLb,
+                 var.func=IQR,var.cutoff=IQR(as.vector(es))/5, 
+                 feature.exclude="^AFFX")
+ALLb <- ALLb$eset
+# the data set
+featureNames(ALLb) <- make.names(featureNames(ALLb))
+dt <- data.frame(t(exprs(ALLb)),Mut=ALLb$mol.bio)
+DSs <- list(dataset(Mut ~ .,dt,'ALL'))
+# The learners to evaluate
+TODO <- c('knn','svm','randomForest')
+for(td in TODO) {
+  assign(td,
+         experimentalComparison(
+           DSs,
+           c(
+             do.call('variants',
+                     c(list('genericModel',learner=td),
+                       vars[[td]],
+                       varsRootName=td))
+           ),
+           loocvSettings(seed=1234,verbose=F)
+         )
+  )
+  save(list=td,file=paste(td,'Rdata',sep='.'))
+}
+
+###### END DO NOT EXECUTE #######
+
+# load data from files
+
