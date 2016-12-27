@@ -132,13 +132,16 @@ levelplot(as.matrix(dt[ordMut,rf.genes]),
 # there are differences between expression levels. 
 
 # 5.3.4 Filtering using Clustering Ensembles
-# grouping variables into similar groups
+# grouping variables into similar groups. 
+# Ensemble methods rely on some form of diversity among individual models. One way to do this 
+# is by randomly sampling predictor variavbles
 library(Hmisc)
 vc <- varclus(t(es))
 clus30 <- cutree(vc$hclust,30)
 table(clus30)
 
-
+# here we randomly sample variables from 30 clusters. Each time we call this it will produce a
+# different gene set. We can then model using a ensemble method with this technique.
 getVarsSet <- function(cluster,nvars=30,seed=NULL,verb=F) 
 {
   if (!is.null(seed)) set.seed(seed)
