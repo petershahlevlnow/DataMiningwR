@@ -311,4 +311,65 @@ for(td in TODO) {
 ###### END DO NOT EXECUTE #######
 
 # load data from files
+load(file = "Data/knn.Rdata")
+load(file = "Data/svm.Rdata")
+load(file = "Data/randomForest.Rdata")
+
+# rank best svm variants
+rankSystems(svm, max = T) # assumes "best" rank is smaller, use max = T to rank on highest values - like accuracy
+
+# get an overall perspective of all model variants
+all.trails <- join(svm, knn, randomForest, by = "variants")
+rankSystems(all.trails, top = 10, max = T)
+
+# look at the top scoring variant
+getVariant("knn.v2", all.trails)
+
+# if we want to know the predictions of the best model on each iteration of the LOOCV process
+# we implement the below function, which is similar to the genericModel function. 
+# the main difference is that the below function returns a structure as opposed to a vector of accuracy
+# it is also focused on 5 - kNN with random forest filtering
+# this function gets the actual predictions out.
+
+bestknn.loocv <- function(form,train,test,...) {
+  require(Biobase,quietly=T)
+  require(randomForest,quietly=T)
+  cat('=')
+  tgt <- as.character(form[[2]])
+  tgtCol <- which(colnames(train)==tgt)
+  # Anova filtering
+  f <- Anova(train[,tgt],p=0.01)
+  ff <- filterfun(f)
+  genes <- genefilter(t(train[,-tgtCol]),ff)
+  genes <- names(genes)[genes]
+  train <- train[,c(tgt,genes)]
+  test <- test[,c(tgt,genes)]
+  tgtCol <- 1
+  # Random Forest filtering
+  rf <- randomForest(form,train,importance=T)
+  imp <- importance(rf)
+  imp <- imp[,ncol(imp)-1]
+  rf.genes <- names(imp)[order(imp,decreasing=T)[1:30]]
+  train <- train[,c(tgt,rf.genes)]
+  test <- test[,c(tgt,rf.genes)]
+  # knn prediction
+  ps <- kNN(form,train,test,norm=T, 
+            norm.stats=list(rowMedians(t(as.matrix(train[,-tgtCol]))),
+                            rowIQRs(t(as.matrix(train[,-tgtCol])))),
+            k=5,...)
+  structure(c(accuracy=ifelse(ps == resp(form,test),100,0)),
+            itInfo=list(ps)
+  )
+}
+
+resTop <- loocv(learner('bestknn.loocv', pars = list()),
+                dataset(Mut ~ ., dt),
+                loocvSettings(seed = 1234, verbose = F),
+                itsInfo = T)
+
+# get the first four predictions out
+attr(resTop, "itsInfo")[1:4]
+#confusion matrix
+preds <- unlist(attr(resTop, "itsInfo"))
+table(preds, dt$Mut)
 
