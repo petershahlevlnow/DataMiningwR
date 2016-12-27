@@ -80,7 +80,7 @@ es <- exprs(ALLb)
 dim(es)
 
 # 5.3.2 ANOVA Filters
-# genes that have means across multiple samples can be discarded
+# genes that have the same means across all four expression levels of the target variable can be discarded
 f <- Anova(ALLb$mol.biol, p =0.01) #creates a new function for carrying out Anova filtering, requires a factor
 ff <- filterfun(f) # filtering function for a expression matrix
 selGenes <- genefilter(exprs(ALLb), ff)    # creates a vector of True False values for genes that don't have similar means
