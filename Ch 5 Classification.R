@@ -246,4 +246,25 @@ table(preds.norm, ts[, 5])
 preds.notNorm <- kNN(Species ~ ., tr, ts, norm = F, k = 3)
 table(preds.notNorm, ts[, 5])
 
+# 5.4.5 Comparing the Madels
+# feature selection will be done as part of the modelling process to avoid bias
+# for each iteration of the LOOCV, a feature selection process is carried out
+# the only feature selection done prior to model input is the simple filtering
 
+# the below lists define the variants of each model including the feature selection method
+vars <- list()
+vars$randomForest <- list(ntree = c(500, 750, 100),
+                          mtry = c (5, 15,30),
+                          fs.meth = list(list('all'),
+                                         list('rf', 30),
+                                         list('varclus', 30, 50)))
+vars$svm <- list(cost = c(1, 100, 500),
+                 gamma = c (0.01, 0.001, 0.0001),
+                 fs.meth = list(list('all'),
+                                list('rf', 30),
+                                list('varclus', 30, 50)))
+vars$knn <-  list(k = c(3, 5, 7, 13),
+                  norm = c (T, F),
+                  fs.meth = list(list('all'),
+                                 list('rf', 30),
+                                 list('varclus', 30, 50)))
