@@ -160,3 +160,90 @@ getVarsSet <- function(cluster,nvars=30,seed=NULL,verb=F)
 }
 getVarsSet(vc$hclust)
 getVarsSet(vc$hclust)
+
+# 5.4 Predicting Cytogenetic Abnormalities
+# task of predicting type of cytogenetic abnormaliteis of the B-cell ALL cases.
+
+# 5.4.1 Prediction Task
+# 1) model consisting of genes(predictors) and known B-cell Values (target). 
+# 2) gene selection will change with each iteration of model similar to section 5.3
+# 3) multiclass classification problem. target can have one of four values
+
+# 5.4.2 Evaluation Metric
+# classification problems like this can have several eval metrics:
+# 1) error rate or complement - accuracy
+# 2) Area under ROC curve
+# 3) precision and recall
+# 4) measures of accuracy of the class probability estimates (Brier Score) 
+
+# ROC curves have drawbacks with multiple classifications
+# here we will use standard accuracy:
+# acc = 1 - 1/N * sum(1:N) of Loss function 
+# where loss function is L[0,1] {0 yi = pyi, 1 otherwise} (basically 0 = correct classification, 1 is not correct)
+
+# 5.4.3 Experimental Procedure - Leave one out cross validation (LOOCV)
+# Obtain N models (94 in this case), where each model uses N-1 samples and tested on left out sample
+# illustration using the iris data set
+data(iris)
+rpart.loocv <- function(form, train, test, ...){
+  require(rpart, quietly = T)
+  m <- rpart(form, train,...)
+  p <- predict(m, test, type = 'class')
+  c(accuracy = ifelse(p == resp(form, test), 100, 0))
+}
+
+# loocv from book package
+library(DMwR)
+exp <- loocv(learner('rpart.loocv', list()), dataset(Species ~ .,iris), 
+             loocvSettings(seed = 1234, verbose = F))
+
+summary(exp)
+
+# 5.4.4 Modelling Techniques
+# We will use three data sets - one with genes of the ANOVA filter, and other two with 30 gene selection
+# Three modelling techniques:
+# 1) Random forest - where prediction is tallied votes among all trees, as opposed to regression where averaging across all trees to obtain prediction
+# 2) k nearest neighbor - measures distance and similarity between samples, similar gene mutations
+# 3) SVM - non linear relationship among gene expressions and abnormalities
+
+# 5.4.4.2 k-nearest neighbor
+# doesn't make a model. looks for similarities among stored data set to make the prediction
+# in classification this is a voting mechanism, therefore odd numbers is desirable
+# can also include distance
+# normalizing data is important if including distance
+# simple illustration
+
+library(class)
+data(iris)
+idx <- sample(1:nrow(iris), as.integer(0.7 * nrow(iris))) # sample 70% of iris for train
+tr <- iris[idx, ]
+ts <- iris[-idx, ] # test data is everthing not in sample
+preds <- knn(tr[ , -5], ts[ , -5], tr[ , 5], k = 3)
+table(preds, ts[, 5])
+
+# small function that standardizies numerics and then does an KNN - this function is included in
+# the DMwR package so need to execute it.
+kNN <- function(form, train, test, norm = T, norm.stats = NULL, ...){
+  require(class, quietly = TRUE)
+  tgtCol <- which(colnames(train) == as.character(form[2]))
+  if (norm){
+    if(is.null(norm.stats))
+      tmp <- scale(train[, -tgtCol], center = T, scale = T)
+    else # if norm stats of centrality and spread statistics are provided as a list
+      tmp <- scale(train[, -tgtCol], center = norm.stats[[1]], scale = norm.stats[[2]])
+    train[, -tgtCol] <- tmp
+    ms <- attr(tmp, "scaled:center")
+    ss <- attr(tmp, "scaled:scale")
+    test[, -tgtCol] <- scale(test[, -tgtCol], center = ms, scale = ss)
+  }
+  knn(train[, -tgtCol], test[, -tgtCol], train[, tgtCol], ...)
+}
+
+# test KNN function with normalization and without normalization
+preds.norm <- kNN(Species ~ ., tr, ts, k = 3)
+table(preds.norm, ts[, 5])
+
+preds.notNorm <- kNN(Species ~ ., tr, ts, norm = F, k = 3)
+table(preds.notNorm, ts[, 5])
+
+
